@@ -2,6 +2,7 @@ import wikipediaapi
 from telebot import TeleBot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import token
+import mongoengine as me
 from models import User, Query
 
 
@@ -26,7 +27,7 @@ class SearchInfoBot:
     def _create_user(chat_id):
         try:
             User.objects.create(chat_id=chat_id)
-        except Exception:
+        except me.NotUniqueError:
             pass
 
     @staticmethod
@@ -44,7 +45,7 @@ class SearchInfoBot:
         if self._get_wiki_page(query).exists():
             return self._get_wiki_page(query).summary
         else:
-            return 'No results'
+            return False
 
     def _get_url(self, query):
         return self._get_wiki_page(query).fullurl
@@ -54,14 +55,17 @@ class SearchInfoBot:
 
     def _start_method(self, message):
         self._remove_chat_button()
-        self._bot.send_message(message.chat.id, 'Поиск в википедии. Введите запрос.')
+        self._bot.send_message(message.chat.id, 'Search in wikipedia. Enter your query.')
         self._create_user(message.chat.id)
 
     def _summary_method(self, message):
         self._remove_chat_button()
-        button_link = InlineKeyboardButton(text='Link to article', url=self._get_url(message.text))
-        self._kb.add(button_link)
-        self._bot.send_message(message.chat.id, self._get_summary(message.text), reply_markup=self._kb)
+        if self._get_summary(message.text):
+            button_link = InlineKeyboardButton(text='Link to article in wikipedia', url=self._get_url(message.text))
+            self._kb.add(button_link)
+            self._bot.send_message(message.chat.id, self._get_summary(message.text), reply_markup=self._kb)
+        else:
+            self._bot.send_message(message.chat.id, 'No results')
         self._save_query(message.chat.id, message.text)
 
 
